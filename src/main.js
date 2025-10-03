@@ -378,6 +378,7 @@ class App {
     this.lastX = 0;
     this.lastY = 0;
     this.movementSpeed = 0.05; // Default speed value
+    this.userLights = []; // Array to store user-created lights
 
     this.init();
   }
@@ -537,8 +538,8 @@ class App {
 
     const speedSlider = document.createElement('input');
     speedSlider.type = 'range';
-    speedSlider.min = '0.01';
-    speedSlider.max = '0.2';
+    speedSlider.min = '0.05';
+    speedSlider.max = '0.70';
     speedSlider.step = '0.01';
     speedSlider.value = this.movementSpeed.toString();
     speedSlider.id = 'speed-slider';
@@ -581,21 +582,20 @@ class App {
       margin-top: 5px; display: block;
     `;
 
-    // Use both 'input' and 'change' events for better compatibility
-    const updateSpeed = (e) => {
+    // Bind the update function to preserve 'this' context
+    speedSlider.addEventListener('input', (e) => {
       const newSpeed = parseFloat(e.target.value);
-      console.log('Slider event fired! Old speed:', this.movementSpeed, 'New speed:', newSpeed);
       this.movementSpeed = newSpeed;
       speedValue.textContent = `${Math.round(newSpeed / 0.05 * 100)}%`;
-      console.log('Speed updated to:', this.movementSpeed);
-    };
+      console.log('Speed slider changed to:', newSpeed);
+      console.log('this.movementSpeed is now:', this.movementSpeed);
+    });
 
-    speedSlider.addEventListener('input', updateSpeed);
-    speedSlider.addEventListener('change', updateSpeed);
-
-    // Test the slider is working by adding a click test
-    speedSlider.addEventListener('mousedown', () => {
-      console.log('Slider clicked, current value:', speedSlider.value);
+    speedSlider.addEventListener('change', (e) => {
+      const newSpeed = parseFloat(e.target.value);
+      this.movementSpeed = newSpeed;
+      speedValue.textContent = `${Math.round(newSpeed / 0.05 * 100)}%`;
+      console.log('Speed change confirmed:', this.movementSpeed);
     });
 
     speedContainer.appendChild(speedLabel);
@@ -618,7 +618,9 @@ class App {
       Mouse drag - Look around<br>
       Q/E - Roll camera<br>
       Z/C - Pitch adjust<br>
-      R - Reset camera
+      R - Reset camera<br>
+      L - Create light at camera<br>
+      K - Remove last light
     `;
     document.body.appendChild(controlsInfo);
 
@@ -626,6 +628,8 @@ class App {
     window.addEventListener("keydown", (e) => {
       this.keys[e.code] = true;
       if (e.code === 'KeyR') this.stereo.resetCamera();
+      if (e.code === 'KeyL') this.createLightAtCamera();
+      if (e.code === 'KeyK') this.removeLastLight();
     });
     window.addEventListener("keyup", (e) => (this.keys[e.code] = false));
 
@@ -652,7 +656,7 @@ class App {
   }
 
   updateCameraControls() {
-    const speed = 0.05;
+    const speed = this.movementSpeed; // Use the slider-controlled speed
     const rotationSpeed = 0.02;
     const dir = new THREE.Vector3();
 
@@ -677,6 +681,54 @@ class App {
     this.stereo.cameraGroup.translateX(dir.x);
     this.stereo.cameraGroup.translateY(dir.y);
     this.stereo.cameraGroup.translateZ(dir.z);
+  }
+
+  createLightAtCamera() {
+    // Create a powerful spotlight at the camera's position
+    const light = new THREE.SpotLight(0xffffff, 50000, 50000, Math.PI / 6, 0.5, 1);
+
+    // Get camera's world position
+    const cameraWorldPosition = new THREE.Vector3();
+    this.stereo.cameraGroup.getWorldPosition(cameraWorldPosition);
+    light.position.copy(cameraWorldPosition);
+
+    // Get camera's forward direction
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyQuaternion(this.stereo.cameraGroup.quaternion);
+
+    // Set light target
+    const target = new THREE.Object3D();
+    target.position.copy(cameraWorldPosition).add(direction.multiplyScalar(10));
+    this.scene.add(target);
+    light.target = target;
+
+    // Add light to scene
+    this.scene.add(light);
+
+    // Store light and target for later removal
+    this.userLights.push({ light, target });
+
+    console.log(`Light created at position:`, cameraWorldPosition);
+    this.showLoadingStatus(`Light created (${this.userLights.length} total)`, 'success');
+  }
+
+  removeLastLight() {
+    if (this.userLights.length > 0) {
+      const { light, target } = this.userLights.pop();
+
+      // Remove from scene
+      this.scene.remove(light);
+      this.scene.remove(target);
+
+      // Dispose of resources
+      light.dispose();
+
+      console.log(`Light removed. ${this.userLights.length} lights remaining.`);
+      this.showLoadingStatus(`Light removed (${this.userLights.length} remaining)`, 'success');
+    } else {
+      console.log('No lights to remove.');
+      this.showLoadingStatus('No lights to remove', 'error');
+    }
   }
 
   animate() {
