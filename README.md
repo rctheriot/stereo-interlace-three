@@ -54,6 +54,8 @@ Our project uses ES modules (`"type": "module"`) and Vite as the dev server and 
 - **Q / E**: Rotate camera counterclockwise / clockwise
 - **Z / C**: Rotate camera around y-axis
 - **R**: Reset camera position and rotation
+- **L**: Create light at camera
+- **K**: Remove last light
 ---
 
 ## Responsive Resize
